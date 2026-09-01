@@ -9,18 +9,18 @@
 
 ## 1. Introdução e Descrição do Problema
 
-O sistema proposto visa modernizar a organização acadêmica e estrutural de uma escola. Historicamente, a gestão escolar enfrenta grandes desafios para montar o quebra-cabeça da grade de horários: definir qual aula ocorre para qual turma, em qual sala, garantindo que não haja choques de horário para os professores nem superlotação de espaços. Além disso, a reserva de espaços compartilhados, como quadras poliesportivas e laboratórios, muitas vezes sofre com controles manuais ineficientes.
+O sistema proposto visa modernizar a organização acadêmica e estrutural de uma escola. O pedagogo é o único que dita a grade, e essa grade é dinâmica: pode ser alterada em qualquer dia. Cada aula dura 50 minutos, no turno da tarde (início às 13h, três aulas, 20 minutos de intervalo, término às 17h30). Salas comuns entram só pela grade. Reservas no sistema existem apenas para salas especiais (ex.: laboratório) e somente se ninguém estiver usando aquele espaço naquela faixa de aula.
 
-O sistema centraliza essas operações, oferecendo uma visão clara do mapa de salas e turmas. Para facilitar o desenvolvimento e a experiência, o projeto adota uma arquitetura apoiada em um Backend-as-a-Service (Supabase), permitindo a separação em duas frentes independentes: uma aplicação web completa para diretores e pedagogos gerenciarem as regras, e um aplicativo móvel enxuto e focado para os alunos consultarem suas rotinas semanais e locais de aula.
+O sistema centraliza essas operações, oferecendo uma visão clara da grade vigente e da ocupação dos laboratórios. Para facilitar o desenvolvimento e a experiência, o projeto adota uma arquitetura apoiada em um Backend-as-a-Service (Supabase), permitindo a separação em duas frentes independentes: uma aplicação web para o pedagogo (e consulta/reserva de lab pelo professor) e um aplicativo móvel enxuto para os alunos consultarem a grade vigente e o local da aula.
 
 ---
 
 ## 2. Identificação dos Atores
 
 - **Aluno (Consumidor):** Acessa o aplicativo móvel específico para estudantes. Seu perfil é apenas de leitura (*read-only*): ele visualiza a grade de aulas da sua turma na semana, sabendo exatamente qual matéria terá e em qual sala física deve comparecer.
-- **Pedagogo / Coordenador:** Responsável por montar a grade de horários, alocar professores nas turmas e associar as turmas às salas de aula disponíveis. Utiliza o sistema web administrativo.
-- **Professor:** Utiliza o sistema para visualizar seus horários de aula, as turmas que lecionará no dia e para solicitar reservas de espaços extras (laboratórios, quadra de esportes, sala de vídeo).
-- **Diretor / Administrador:** Possui visão global. Cadastra os demais usuários, aprova reservas sensíveis e cadastra a infraestrutura (novas salas construídas, etc.).
+- **Pedagogo / Coordenador:** Único responsável por montar e alterar a grade (qualquer dia): disciplina, professor, faixa de 50 min e sala. Utiliza o sistema web administrativo.
+- **Professor:** Consulta seus horários e turmas do dia e pode solicitar reserva de **sala especial** (laboratório), apenas se a faixa estiver ociosa (sem aula naquele lab).
+- **Diretor / Administrador:** Visão de apoio (cadastro de usuários e infraestrutura). **Não** dita a grade e **não** aprova reserva de laboratório: a regra de negócio é ociosidade da faixa.
 
 ---
 
@@ -28,9 +28,9 @@ O sistema centraliza essas operações, oferecendo uma visão clara do mapa de s
 
 A complexidade do negócio será dividida nos seguintes módulos principais:
 
-- **Módulo de Grade Curricular e Horários:** O núcleo do sistema. Responsável por relacionar Turma, Disciplina, Professor e Dia/Horário da semana. Garante regras como: "Um professor não pode dar duas aulas no mesmo horário em turmas diferentes".
+- **Módulo de Grade Curricular e Horários:** O núcleo. Relaciona turma, disciplina, professor, dia e faixa de 50 min da malha da tarde. Só o pedagogo grava. Garante, no recorte atual, que um professor não ocupe duas turmas na mesma faixa.
 - **Módulo de Alocação de Espaços (Salas):** Relaciona a Grade de Horários com a estrutura física da escola. Informa onde cada aula vai acontecer e permite o mapeamento de quais salas estão ociosas em determinado período.
-- **Módulo de Reservas de Recursos:** Gerencia a solicitação e aprovação de espaços compartilhados (Quadra, Laboratório de Ciências, Laboratório de Informática), evitando que dois professores tentem usar a quadra no mesmo horário.
+- **Módulo de Reservas de Salas Especiais:** Reserva de laboratório (e equivalentes) **somente** se ninguém estiver usando naquela aula. Não há fila de aprovação da direção. Sala comum não se reserva por este módulo.
 - **Módulo de Gestão de Usuários:** Centraliza a identidade de alunos, professores e pedagogos, além de gerenciar permissões (Role-Based Access Control) garantindo que o App do Aluno acesse apenas os seus dados permitidos.
 
 ---
@@ -42,7 +42,7 @@ O sistema adota uma **Arquitetura Baseada em BaaS (Backend-as-a-Service)** supor
 - **Camada de Apresentação:** Dividida em dois projetos físicos:
   1. *App do Aluno (Mobile)*: Consome dados para exibição de horários e salas.
   2. *Web App da Gestão*: Interface administrativa rica para pedagogos e professores.
-- **Camada de Aplicação:** Como utilizamos o Supabase, parte da orquestração ocorrerá no próprio cliente (os apps comunicando-se via SDK nativo), enquanto fluxos críticos (como envio de e-mails de aprovação de reserva) rodarão em *Edge Functions* (funções serverless na nuvem).
+- **Camada de Aplicação:** Como utilizamos o Supabase, parte da orquestração ocorrerá no próprio cliente (os apps comunicando-se via SDK nativo), enquanto fluxos críticos (como validar ociosidade do laboratório na faixa) rodarão em *Edge Functions* (funções serverless na nuvem).
 - **Camada de Domínio:** As regras de negócio mais severas (ex: validação de choque de horários e sobreposição de reservas) residem parte nas Edge Functions e parte estruturadas como *Triggers* e *Policies* do banco de dados, protegendo a integridade.
 - **Camada de Persistência:** PostgreSQL (gerenciado pelo Supabase), responsável por armazenar as entidades, gerenciar relacionamentos e aplicar políticas de segurança em nível de linha (Row Level Security - RLS) para garantir que alunos vejam apenas as grades de sua respectiva turma.
 
@@ -55,9 +55,9 @@ O sistema adota uma **Arquitetura Baseada em BaaS (Backend-as-a-Service)** supor
 ```mermaid
 flowchart TD
     Aluno((Aluno)) -->|Visualiza grade| AppAluno["App do Aluno (Mobile)"]
-    Pedagogo((Pedagogo)) -->|Monta grade e salas| AppAdmin["Portal Administrativo (Web)"]
-    Professor((Professor)) -->|Visualiza aulas e faz reservas| AppAdmin
-    Diretor((Diretor)) -->|Gere infraestrutura| AppAdmin
+    Pedagogo((Pedagogo)) -->|Dita e altera a grade qualquer dia| AppAdmin["Portal Administrativo (Web)"]
+    Professor((Professor)) -->|Consulta aulas e reserva lab ocioso| AppAdmin
+    Diretor((Diretor)) -->|Cadastro de infraestrutura| AppAdmin
 
     AppAluno --> Supabase{"Backend Supabase\nBaaS"}
     AppAdmin --> Supabase
@@ -90,7 +90,7 @@ flowchart TB
 ```
 
 ### 5.3. Diagrama de Fluxo do Sistema
-**Caso de Uso Escolhido:** Professor solicitando reserva da Quadra Poliesportiva.
+**Caso de Uso Escolhido:** Professor solicitando reserva de laboratório em faixa ociosa.
 
 ```mermaid
 sequenceDiagram
@@ -99,20 +99,20 @@ sequenceDiagram
     participant Edge as Edge Function
     participant DB as Supabase DB
 
-    Prof->>Web: Seleciona Quadra e Horário
-    Web->>Edge: POST /solicitar-reserva (recurso_id, horario)
+    Prof->>Web: Seleciona laboratório e faixa da aula (50 min)
+    Web->>Edge: POST /solicitar-reserva (lab_id, dia, faixa)
     
-    Edge->>DB: SELECT verificarDisponibilidade()
-    DB-->>Edge: true (Quadra Livre)
+    Edge->>DB: SELECT ocupação do lab na faixa (aula ou reserva)
+    DB-->>Edge: livre (ninguém usando)
     
-    Edge->>Edge: Valida se o professor possui choque de grade
+    Edge->>DB: INSERT reserva
+    DB-->>Edge: Reserva criada
     
-    Edge->>DB: INSERT reserva (status Confirmada)
-    DB-->>Edge: Reserva Criada
-    
-    Edge-->>Web: 200 OK (Sucesso)
+    Edge-->>Web: 200 OK
     Web-->>Prof: Exibe "Reserva confirmada"
 ```
+
+Se o laboratório já tiver aula na faixa, o fluxo termina em recusa (sem aprovação da direção).
 
 ### 5.4. Diagrama de Módulos
 
@@ -122,13 +122,13 @@ flowchart LR
         Usuarios["Gestão de\nUsuários"]
         Grade["Grade de\nHorários"]
         Salas["Alocação de\nSalas"]
-        Reservas["Reservas de\nRecursos Extras"]
+        Reservas["Reservas de\nLabs (faixa ociosa)"]
     end
 
     Usuarios -->|Professor leciona| Grade
     Grade -->|Ocorre obrigatoriamente em| Salas
     Usuarios -->|Professor solicita| Reservas
-    Grade -->|Impede choque de horário com| Reservas
+    Grade -->|Aula na faixa impede reserva do lab| Reservas
 ```
 
 ---

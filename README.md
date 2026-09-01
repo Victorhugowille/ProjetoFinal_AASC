@@ -6,7 +6,7 @@
 
 Este repositório contém a documentação arquitetural de um **Sistema de Gestão de Escolas**, elaborada como projeto final da disciplina. O objetivo não é a implementação do sistema, mas sim a **análise do domínio, decomposição em módulos e proposta de uma organização arquitetural coerente**, aplicando conceitos estudados ao longo do curso.
 
-O sistema proposto resolve a organização de **grades de horários, alocação de salas, reserva de recursos** (quadras, laboratórios) e a comunicação dessas informações aos alunos por meio de um aplicativo mobile.
+O sistema proposto resolve a organização da **grade de horários (só o pedagogo; alteração em qualquer dia)**, alocação de salas, **reserva de laboratórios apenas em faixa ociosa**, e a consulta da grade vigente pelos alunos.
 
 ## 👤 Autor
 
@@ -42,8 +42,9 @@ O sistema adota uma arquitetura **Backend-as-a-Service (BaaS)** com Supabase, se
 
 ```
 📁 ProjetoFinal_AASC/
-├── 📄 README.md                            ← Você está aqui
-└── 📄 trabalho_arquitetura_escola.md       ← Documento principal do trabalho
+├── 📄 README.md                         ← Você está aqui
+├── 📄 analise_inicial_sistema.md        ← Análise do domínio (fatos, fluxo, operações)
+└── 📄 trabalho_arquitetura_escola.md    ← Trabalho de arquitetura
 ```
 
 ## 📖 Conteúdo do Documento
@@ -57,7 +58,7 @@ O arquivo [`trabalho_arquitetura_escola.md`](trabalho_arquitetura_escola.md) con
 5. **Diagramas Obrigatórios (Mermaid)**
    - Diagrama de Ecossistema
    - Diagrama Arquitetural
-   - Diagrama de Fluxo (Reserva de Quadra)
+   - Diagrama de Fluxo (Reserva de laboratório ocioso)
    - Diagrama de Módulos
 6. **Reflexão Arquitetural** — Trade-offs e desafios
 7. **ADR-001** — Decisão por BaaS (Supabase)
